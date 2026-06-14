@@ -27,7 +27,8 @@ const Dashboard: React.FC = () => {
   };
 
   const handleProtectedClick = (path: string) => {
-    if (!isAuthenticated) {
+    const token = localStorage.getItem('token');
+    if (!token) {
       navigate('/login');
     } else {
       navigate(path);
