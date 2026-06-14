@@ -25,14 +25,6 @@ export async function publishToPlatform(
   try {
     await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 500));
 
-    const randomFail = Math.random() < 0.05;
-    if (randomFail) {
-      return {
-        status: 'failed',
-        message: '平台接口繁忙，请稍后重试'
-      };
-    }
-
     const postId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
     return {
