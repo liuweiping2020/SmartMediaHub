@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
-import { Box, Button, Stack, Tooltip, Dialog, DialogTitle, DialogContent, TextField, DialogActions, IconButton, Typography, Chip, Alert } from '@mui/material';
+import { Box, Button, Stack, Tooltip, Dialog, DialogTitle, DialogContent, TextField, DialogActions, IconButton, Typography, Chip, Alert, Card, CardContent, Link } from '@mui/material';
 import ImageIcon from '@mui/icons-material/Image';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import AudiotrackIcon from '@mui/icons-material/Audiotrack';
@@ -50,6 +50,7 @@ const RichMediaEditor: React.FC<RichMediaEditorProps> = ({ editId }) => {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [currentContentId, setCurrentContentId] = useState<string | null>(editId || null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+  const [publishStatus, setPublishStatus] = useState<Record<string, { status: string; message: string; postUrl?: string; publishedAt?: string }>>({});
 
   const PLATFORMS = ['头条号', '微信公众号', '抖音', '小红书', '哔哩哔哩', '百家号', '快手', '视频号'];
 
@@ -87,6 +88,18 @@ const RichMediaEditor: React.FC<RichMediaEditorProps> = ({ editId }) => {
         setTitle(content.title);
         setCurrentContentId(content._id);
         setSelectedPlatforms(content.platforms || []);
+        if ((content as any).publishStatus) {
+          const statusObj: Record<string, any> = {};
+          const raw = (content as any).publishStatus;
+          if (raw instanceof Map) {
+            raw.forEach((value, key) => { statusObj[key] = value; });
+          } else if (typeof raw === 'object') {
+            for (const key of Object.keys(raw)) {
+              statusObj[key] = raw[key];
+            }
+          }
+          setPublishStatus(statusObj);
+        }
         if (quillRef.current) {
           quillRef.current.getEditor().root.innerHTML = content.content;
         }
@@ -143,23 +156,55 @@ const RichMediaEditor: React.FC<RichMediaEditorProps> = ({ editId }) => {
       setMessage({ type: 'error', text: '请选择至少一个发布平台' });
       return;
     }
+
     setPublishing(true);
     setMessage(null);
+
+    const pendingStatus: Record<string, any> = {};
+    for (const p of selectedPlatforms) {
+      pendingStatus[p] = { status: 'pending', message: '发布中...' };
+    }
+    setPublishStatus(prev => ({ ...prev, ...pendingStatus }));
+
     try {
       const userId = localStorage.getItem('userId');
-      if (currentContentId) {
-        await axios.put(`/api/contents/${currentContentId}`, {
-          userId, title, content, platforms: selectedPlatforms, status: 'published'
+      let contentId = currentContentId;
+
+      if (!contentId) {
+        const createRes = await axios.post('/api/contents', {
+          userId, title, content, platforms: selectedPlatforms, status: 'draft'
         });
+        contentId = createRes.data._id;
+        setCurrentContentId(contentId);
       } else {
-        const res = await axios.post('/api/contents', {
-          userId, title, content, platforms: selectedPlatforms, status: 'published'
+        await axios.put(`/api/contents/${contentId}`, {
+          userId, title, content, platforms: selectedPlatforms
         });
-        setCurrentContentId(res.data._id);
       }
-      setMessage({ type: 'success', text: '发布成功！' });
-    } catch (error) {
-      setMessage({ type: 'error', text: '发布失败' });
+
+      const publishRes = await axios.post(`/api/contents/${contentId}/publish`, {
+        platforms: selectedPlatforms,
+        userId,
+      });
+
+      const results = publishRes.data.results || {};
+      setPublishStatus(prev => ({ ...prev, ...results }));
+
+      const successCount = Object.values(results).filter((r: any) => r.status === 'success').length;
+      const failedCount = Object.values(results).filter((r: any) => r.status === 'failed').length;
+
+      if (failedCount === 0) {
+        setMessage({ type: 'success', text: `成功发布到 ${successCount} 个平台！` });
+      } else {
+        setMessage({ type: 'error', text: `发布完成：成功 ${successCount} 个，失败 ${failedCount} 个` });
+      }
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.response?.data?.message || '发布失败' });
+      const failedStatus: Record<string, any> = {};
+      for (const p of selectedPlatforms) {
+        failedStatus[p] = { status: 'failed', message: '发布请求失败' };
+      }
+      setPublishStatus(prev => ({ ...prev, ...failedStatus }));
     } finally {
       setPublishing(false);
     }
@@ -362,6 +407,50 @@ const RichMediaEditor: React.FC<RichMediaEditorProps> = ({ editId }) => {
           ))}
         </Stack>
       </Box>
+
+      {/* 逐平台发布状态 */}
+      {Object.keys(publishStatus).length > 0 && (
+        <Card sx={{ bgcolor: 'rgba(0, 255, 255, 0.05)', borderRadius: 2, mb: 3, border: '1px solid rgba(0, 255, 255, 0.2)' }}>
+          <CardContent>
+            <Typography sx={{ color: '#0ff', fontWeight: 600, mb: 2 }}>平台发布状态：</Typography>
+            {Object.entries(publishStatus).map(([platform, status]) => (
+              <Box key={platform} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 0.5 }}>
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <Typography sx={{ color: '#fff' }}>{platform}</Typography>
+                  <Chip
+                    label={
+                      status.status === 'success' ? '✓ 已发布' :
+                      status.status === 'failed' ? '✗ 失败' :
+                      '发布中...'
+                    }
+                    size="small"
+                    sx={{
+                      bgcolor: status.status === 'success' ? '#4caf50' :
+                               status.status === 'failed' ? '#ff6b6b' :
+                               '#ff9800',
+                      color: '#fff',
+                      fontWeight: 600,
+                    }}
+                  />
+                </Stack>
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <Typography sx={{ color: '#fff', opacity: 0.6, fontSize: 12 }}>{status.message}</Typography>
+                  {status.postUrl && (
+                    <Link href={status.postUrl} target="_blank" rel="noopener noreferrer" sx={{ color: '#0ff', fontSize: 12 }}>
+                      查看
+                    </Link>
+                  )}
+                  {status.publishedAt && (
+                    <Typography sx={{ color: '#fff', opacity: 0.4, fontSize: 11 }}>
+                      {new Date(status.publishedAt).toLocaleString('zh-CN')}
+                    </Typography>
+                  )}
+                </Stack>
+              </Box>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* 操作按钮 */}
       <Stack direction="row" spacing={2} justifyContent="flex-end">

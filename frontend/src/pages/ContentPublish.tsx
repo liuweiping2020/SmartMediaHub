@@ -226,20 +226,43 @@ const ContentPublish: React.FC = () => {
                           <Box sx={{ mb: 1 }}>
                             {item.platforms && item.platforms.length > 0 ? (
                               <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                                {item.platforms.map((p: string) => (
-                                  <Chip
-                                    key={p}
-                                    label={p}
-                                    size="small"
-                                    sx={{
-                                      bgcolor: 'rgba(0, 255, 255, 0.15)',
-                                      color: '#0ff',
-                                      fontSize: 12,
-                                      mr: 0.5,
-                                      mb: 0.5
-                                    }}
-                                  />
-                                ))}
+                                {item.platforms.map((p: string) => {
+                                  const itemAny = item as any;
+                                  let statusInfo: any = null;
+                                  if (itemAny.publishStatus) {
+                                    if (itemAny.publishStatus instanceof Map) {
+                                      statusInfo = itemAny.publishStatus.get(p);
+                                    } else if (typeof itemAny.publishStatus === 'object') {
+                                      statusInfo = itemAny.publishStatus[p];
+                                    }
+                                  }
+                                  const labelBase = p;
+                                  const hasPublished = statusInfo && statusInfo.status === 'success';
+                                  const hasFailed = statusInfo && statusInfo.status === 'failed';
+                                  return (
+                                    <Chip
+                                      key={p}
+                                      label={
+                                        hasPublished ? `✓ ${labelBase}` :
+                                        hasFailed ? `✗ ${labelBase}` :
+                                        labelBase
+                                      }
+                                      size="small"
+                                      sx={{
+                                        bgcolor: hasPublished ? 'rgba(76, 175, 80, 0.3)' :
+                                                 hasFailed ? 'rgba(255, 107, 107, 0.3)' :
+                                                 'rgba(0, 255, 255, 0.15)',
+                                        color: hasPublished ? '#81c784' :
+                                               hasFailed ? '#ff8a80' :
+                                               '#0ff',
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        mr: 0.5,
+                                        mb: 0.5,
+                                      }}
+                                    />
+                                  );
+                                })}
                               </Stack>
                             ) : (
                               <Typography sx={{ color: '#fff', opacity: 0.5, fontSize: 12 }}>
