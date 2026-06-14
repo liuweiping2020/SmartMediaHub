@@ -320,22 +320,22 @@ const RichMediaEditor: React.FC<RichMediaEditorProps> = ({ editId }) => {
       {/* AI工具栏 */}
       <Stack direction="row" sx={toolbarStyle}>
         <Tooltip title="AI生成图片" arrow>
-          <IconButton color="primary" onClick={() => setImgOpen(true)}><ImageIcon /></Tooltip>
+          <IconButton color="primary" onClick={() => setImgOpen(true)}><ImageIcon /></IconButton>
         </Tooltip>
         <Tooltip title="AI生成语音" arrow>
-          <IconButton color="primary" onClick={() => setAudioOpen(true)}><VolumeUpIcon /></Tooltip>
+          <IconButton color="primary" onClick={() => setAudioOpen(true)}><VolumeUpIcon /></IconButton>
         </Tooltip>
         <Tooltip title="语音转文字" arrow>
-          <IconButton color="primary" onClick={() => setAsrOpen(true)}><MicIcon /></Tooltip>
+          <IconButton color="primary" onClick={() => setAsrOpen(true)}><MicIcon /></IconButton>
         </Tooltip>
         <Tooltip title="图片转视频" arrow>
-          <IconButton color="primary" onClick={() => setImg2VideoOpen(true)}><MovieIcon /></Tooltip>
+          <IconButton color="primary" onClick={() => setImg2VideoOpen(true)}><MovieIcon /></IconButton>
         </Tooltip>
         <Tooltip title="本地图片上传" arrow>
-          <IconButton color="primary" onClick={() => setLocalImgOpen(true)}><PhotoCamera /></Tooltip>
+          <IconButton color="primary" onClick={() => setLocalImgOpen(true)}><PhotoCamera /></IconButton>
         </Tooltip>
         <Tooltip title="上传文件" arrow>
-          <IconButton color="primary" onClick={() => setFileOpen(true)}><AttachFileIcon /></Tooltip>
+          <IconButton color="primary" onClick={() => setFileOpen(true)}><AttachFileIcon /></IconButton>
         </Tooltip>
       </Stack>
 
