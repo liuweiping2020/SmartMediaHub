@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import mongoose from 'mongoose';
 import userRoutes from './routes/userRoutes';
 import platformAccountRoutes from './routes/platformAccountRoutes';
 import contentRoutes from './routes/contentRoutes';
@@ -19,6 +20,11 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/smartmediahub';
+mongoose.connect(MONGO_URI)
+  .then(() => console.log('MongoDB 连接成功'))
+  .catch((err) => console.error('MongoDB 连接失败:', err));
 
 app.use('/api/users', userRoutes);
 app.use('/api/platform-accounts', platformAccountRoutes);
