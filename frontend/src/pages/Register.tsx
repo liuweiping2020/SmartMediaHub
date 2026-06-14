@@ -17,7 +17,11 @@ const Register: React.FC = () => {
             return;
         }
         try {
-            await axios.post('/api/users/register', { email, password });
+            const response = await axios.post('/api/users/register', { email, password });
+            if (response.data.userId) {
+              localStorage.setItem('userId', response.data.userId);
+              localStorage.setItem('email', email);
+            }
             navigate('/login');
         } catch (error) {
             console.error('注册失败', error);

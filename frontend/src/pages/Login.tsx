@@ -14,6 +14,8 @@ const Login: React.FC = () => {
         try {
             const response = await axios.post('/api/users/login', { email, password });
             localStorage.setItem('token', response.data.token);
+            localStorage.setItem('userId', response.data.userId || response.data.email);
+            localStorage.setItem('email', response.data.email);
             navigate('/dashboard');
         } catch (error) {
             console.error('登录失败', error);

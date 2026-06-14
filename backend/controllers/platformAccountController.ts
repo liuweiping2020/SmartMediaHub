@@ -1,6 +1,12 @@
 import { Request, Response } from 'express';
 import PlatformAccount from '../models/PlatformAccount';
 
+export const getPlatformAccounts = async (req: Request, res: Response) => {
+  const userId = req.query.userId as string;
+  const accounts = await PlatformAccount.find({ userId });
+  res.json(accounts);
+};
+
 export const addPlatformAccount = async (req: Request, res: Response) => {
   const { userId, platform, username } = req.body;
   const newAccount = new PlatformAccount({ userId, platform, username });

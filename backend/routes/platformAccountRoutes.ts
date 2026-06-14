@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import { addPlatformAccount, deletePlatformAccount } from '../controllers/platformAccountController';
+import { getPlatformAccounts, addPlatformAccount, deletePlatformAccount } from '../controllers/platformAccountController';
 
 const router = Router();
 
+router.get('/', getPlatformAccounts);
 router.post('/', addPlatformAccount);
 router.delete('/:id', deletePlatformAccount);
 

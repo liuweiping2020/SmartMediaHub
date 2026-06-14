@@ -16,7 +16,7 @@ export const register = async (req: Request, res: Response) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({ email, password: hashedPassword });
     await user.save();
-    res.status(201).json({ message: '注册成功' });
+    res.status(201).json({ message: '注册成功', userId: (user as any)._id.toString() });
   } catch (error) {
     res.status(500).json({ message: '注册失败', error: String(error) });
   }
@@ -33,8 +33,8 @@ export const login = async (req: Request, res: Response) => {
     if (!isMatch) {
       return res.status(400).json({ message: '密码错误' });
     }
-    const token = jwt.sign({ email }, 'your_jwt_secret', { expiresIn: '1h' });
-    res.json({ token, email });
+    const token = jwt.sign({ email, userId: (user as any)._id?.toString() || email }, 'your_jwt_secret', { expiresIn: '1h' });
+    res.json({ token, email, userId: (user as any)._id?.toString() || email });
   } catch (error) {
     res.status(500).json({ message: '登录失败', error: String(error) });
   }
