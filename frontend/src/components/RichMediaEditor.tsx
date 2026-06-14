@@ -1,7 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
-import { Box, Button, Stack, Tooltip, Dialog, DialogTitle, DialogContent, TextField, DialogActions, IconButton } from '@mui/material';
+import { Box, Button, Stack, Tooltip, Dialog, DialogTitle, DialogContent, TextField, DialogActions, IconButton, Typography, Chip, Alert } from '@mui/material';
 import ImageIcon from '@mui/icons-material/Image';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import AudiotrackIcon from '@mui/icons-material/Audiotrack';
@@ -9,6 +9,13 @@ import MovieIcon from '@mui/icons-material/Movie';
 import MicIcon from '@mui/icons-material/Mic';
 import PhotoCamera from '@mui/icons-material/PhotoCamera';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
+import SaveIcon from '@mui/icons-material/Save';
+import SendIcon from '@mui/icons-material/Send';
+import DeleteIcon from '@mui/icons-material/Delete';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 const toolbarStyle = {
   background: 'linear-gradient(90deg, #0ff 0%, #09f 100%)',
@@ -21,8 +28,31 @@ const toolbarStyle = {
   alignItems: 'center',
 };
 
-const RichMediaEditor: React.FC = () => {
+interface ContentItem {
+  _id: string;
+  title: string;
+  content: string;
+  status: string;
+  platforms: string[];
+  createdAt: string;
+}
+
+interface RichMediaEditorProps {
+  editId?: string;
+}
+
+const RichMediaEditor: React.FC<RichMediaEditorProps> = ({ editId }) => {
+  const navigate = useNavigate();
   const quillRef = useRef<any>(null);
+  const [title, setTitle] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [currentContentId, setCurrentContentId] = useState<string | null>(editId || null);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+
+  const PLATFORMS = ['头条号', '微信公众号', '抖音', '小红书', '哔哩哔哩', '百家号', '快手', '视频号'];
+
   // 弹窗状态
   const [imgOpen, setImgOpen] = useState(false);
   const [imgPrompt, setImgPrompt] = useState('');
@@ -38,58 +68,189 @@ const RichMediaEditor: React.FC = () => {
   const [fileOpen, setFileOpen] = useState(false);
   const [fileType, setFileType] = useState<'audio'|'video'|'md'|'doc'|'pdf'|''>('');
   const [fileObj, setFileObj] = useState<File|null>(null);
+
+  useEffect(() => {
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      navigate('/login');
+    }
+    if (editId) {
+      loadContent(editId);
+    }
+  }, []);
+
+  const loadContent = async (id: string) => {
+    try {
+      const res = await axios.get(`/api/contents?userId=${localStorage.getItem('userId')}`);
+      const content = res.data.find((c: ContentItem) => c._id === id);
+      if (content) {
+        setTitle(content.title);
+        setCurrentContentId(content._id);
+        setSelectedPlatforms(content.platforms || []);
+        if (quillRef.current) {
+          quillRef.current.getEditor().root.innerHTML = content.content;
+        }
+      }
+    } catch (error) {
+      console.error('加载内容失败', error);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!title.trim()) {
+      setMessage({ type: 'error', text: '请输入标题' });
+      return;
+    }
+    const content = quillRef.current?.getEditor().root.innerHTML || '';
+    if (!content.trim() || content === '<p><br></p>') {
+      setMessage({ type: 'error', text: '请输入内容' });
+      return;
+    }
+    setSaving(true);
+    setMessage(null);
+    try {
+      const userId = localStorage.getItem('userId');
+      if (currentContentId) {
+        await axios.put(`/api/contents/${currentContentId}`, {
+          userId, title, content, platforms: selectedPlatforms, status: 'draft'
+        });
+        setMessage({ type: 'success', text: '保存成功' });
+      } else {
+        const res = await axios.post('/api/contents', {
+          userId, title, content, platforms: selectedPlatforms, status: 'draft'
+        });
+        setCurrentContentId(res.data._id);
+        setMessage({ type: 'success', text: '保存成功' });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: '保存失败' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!title.trim()) {
+      setMessage({ type: 'error', text: '请输入标题' });
+      return;
+    }
+    const content = quillRef.current?.getEditor().root.innerHTML || '';
+    if (!content.trim() || content === '<p><br></p>') {
+      setMessage({ type: 'error', text: '请输入内容' });
+      return;
+    }
+    if (selectedPlatforms.length === 0) {
+      setMessage({ type: 'error', text: '请选择至少一个发布平台' });
+      return;
+    }
+    setPublishing(true);
+    setMessage(null);
+    try {
+      const userId = localStorage.getItem('userId');
+      if (currentContentId) {
+        await axios.put(`/api/contents/${currentContentId}`, {
+          userId, title, content, platforms: selectedPlatforms, status: 'published'
+        });
+      } else {
+        const res = await axios.post('/api/contents', {
+          userId, title, content, platforms: selectedPlatforms, status: 'published'
+        });
+        setCurrentContentId(res.data._id);
+      }
+      setMessage({ type: 'success', text: '发布成功！' });
+    } catch (error) {
+      setMessage({ type: 'error', text: '发布失败' });
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const handleClear = () => {
+    setTitle('');
+    if (quillRef.current) {
+      quillRef.current.getEditor().root.innerHTML = '';
+    }
+    setCurrentContentId(null);
+    setSelectedPlatforms([]);
+    setMessage(null);
+  };
+
+  const togglePlatform = (platform: string) => {
+    setSelectedPlatforms(prev =>
+      prev.includes(platform)
+        ? prev.filter(p => p !== platform)
+        : [...prev, platform]
+    );
+  };
+
   // AI生成图片
   const handleAIGenerateImage = async () => {
-    const res = await fetch('/api/multimodal-image/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: imgPrompt, provider: 'openai' })
-    });
-    const data = await res.json();
-    const quill = quillRef.current.getEditor();
-    quill.insertEmbed(quill.getSelection().index, 'image', data.url || data.data?.[0]?.url);
-    setImgOpen(false);
-    setImgPrompt('');
+    try {
+      const res = await fetch('/api/multimodal-image/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: imgPrompt, provider: 'openai' })
+      });
+      const data = await res.json();
+      const quill = quillRef.current.getEditor();
+      quill.insertEmbed(quill.getSelection().index, 'image', data.url || data.data?.[0]?.url);
+      setImgOpen(false);
+      setImgPrompt('');
+    } catch (error) {
+      setMessage({ type: 'error', text: 'AI图片生成失败' });
+    }
   };
   // AI生成语音
   const handleAIGenerateAudio = async () => {
-    const res = await fetch('/api/tts/openai', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: audioPrompt })
-    });
-    const blob = await res.blob();
-    const audioUrl = URL.createObjectURL(blob);
-    const quill = quillRef.current.getEditor();
-    quill.insertEmbed(quill.getSelection().index, 'audio', audioUrl);
-    setAudioOpen(false);
-    setAudioPrompt('');
+    try {
+      const res = await fetch('/api/tts/openai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: audioPrompt })
+      });
+      const blob = await res.blob();
+      const audioUrl = URL.createObjectURL(blob);
+      const quill = quillRef.current.getEditor();
+      quill.insertEmbed(quill.getSelection().index, 'audio', audioUrl);
+      setAudioOpen(false);
+      setAudioPrompt('');
+    } catch (error) {
+      setMessage({ type: 'error', text: 'AI语音生成失败' });
+    }
   };
   // 语音转文字
   const handleASR = async () => {
     if (!audioFile) return;
-    const formData = new FormData();
-    formData.append('audio', audioFile);
-    const res = await fetch('/api/asr/openai', { method: 'POST', body: formData });
-    const data = await res.json();
-    const quill = quillRef.current.getEditor();
-    quill.insertText(quill.getSelection().index, data.text || data.result || '');
-    setAsrOpen(false);
-    setAudioFile(null);
+    try {
+      const formData = new FormData();
+      formData.append('audio', audioFile);
+      const res = await fetch('/api/asr/openai', { method: 'POST', body: formData });
+      const data = await res.json();
+      const quill = quillRef.current.getEditor();
+      quill.insertText(quill.getSelection().index, data.text || data.result || '');
+      setAsrOpen(false);
+      setAudioFile(null);
+    } catch (error) {
+      setMessage({ type: 'error', text: '语音识别失败' });
+    }
   };
   // 图片转视频
   const handleImage2Video = async () => {
-    const res = await fetch('/api/video-gen/image2video', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageUrl: img2VideoUrl, prompt: img2VideoPrompt, apiUrl: '', apiKey: '' })
-    });
-    const data = await res.json();
-    const quill = quillRef.current.getEditor();
-    quill.insertEmbed(quill.getSelection().index, 'video', data.videoUrl || data.url);
-    setImg2VideoOpen(false);
-    setImg2VideoUrl('');
-    setImg2VideoPrompt('');
+    try {
+      const res = await fetch('/api/video-gen/image2video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: img2VideoUrl, prompt: img2VideoPrompt, apiUrl: '', apiKey: '' })
+      });
+      const data = await res.json();
+      const quill = quillRef.current.getEditor();
+      quill.insertEmbed(quill.getSelection().index, 'video', data.videoUrl || data.url);
+      setImg2VideoOpen(false);
+      setImg2VideoUrl('');
+      setImg2VideoPrompt('');
+    } catch (error) {
+      setMessage({ type: 'error', text: '图片转视频失败' });
+    }
   };
   // 本地图片上传处理
   const handleLocalImgUpload = async () => {
@@ -123,30 +284,120 @@ const RichMediaEditor: React.FC = () => {
     setFileObj(null);
     setFileType('');
   };
+
   return (
     <Box sx={{ background: '#101c2c', borderRadius: 4, boxShadow: '0 4px 24px #0ff2', p: 3 }}>
+      <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
+        <SmartToyIcon sx={{ fontSize: 32, color: '#0ff' }} />
+        <Typography variant="h5" sx={{ color: '#0ff', fontWeight: 700 }}>智能富媒体内容创作</Typography>
+      </Stack>
+
+      {/* 消息提示 */}
+      {message && (
+        <Alert severity={message.type} sx={{ mb: 2 }} onClose={() => setMessage(null)}>
+          {message.text}
+        </Alert>
+      )}
+
+      {/* 标题输入 */}
+      <TextField
+        fullWidth
+        label="文章标题"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        sx={{
+          mb: 2,
+          '& .MuiInputLabel-root': { color: '#0ff' },
+          '& .MuiOutlinedInput-root': {
+            '& fieldset': { borderColor: '#0ff' },
+            '&:hover fieldset': { borderColor: '#fff' },
+            '&.Mui-focused fieldset': { borderColor: '#0ff' },
+            color: '#fff',
+          },
+        }}
+      />
+
+      {/* AI工具栏 */}
       <Stack direction="row" sx={toolbarStyle}>
         <Tooltip title="AI生成图片" arrow>
-          <IconButton color="primary" onClick={() => setImgOpen(true)}><ImageIcon /></IconButton>
+          <IconButton color="primary" onClick={() => setImgOpen(true)}><ImageIcon /></Tooltip>
         </Tooltip>
         <Tooltip title="AI生成语音" arrow>
-          <IconButton color="primary" onClick={() => setAudioOpen(true)}><VolumeUpIcon /></IconButton>
+          <IconButton color="primary" onClick={() => setAudioOpen(true)}><VolumeUpIcon /></Tooltip>
         </Tooltip>
         <Tooltip title="语音转文字" arrow>
-          <IconButton color="primary" onClick={() => setAsrOpen(true)}><MicIcon /></IconButton>
+          <IconButton color="primary" onClick={() => setAsrOpen(true)}><MicIcon /></Tooltip>
         </Tooltip>
         <Tooltip title="图片转视频" arrow>
-          <IconButton color="primary" onClick={() => setImg2VideoOpen(true)}><MovieIcon /></IconButton>
+          <IconButton color="primary" onClick={() => setImg2VideoOpen(true)}><MovieIcon /></Tooltip>
         </Tooltip>
         <Tooltip title="本地图片上传" arrow>
-          <IconButton color="primary" onClick={() => setLocalImgOpen(true)}><PhotoCamera /></IconButton>
+          <IconButton color="primary" onClick={() => setLocalImgOpen(true)}><PhotoCamera /></Tooltip>
         </Tooltip>
         <Tooltip title="上传文件" arrow>
-          <IconButton color="primary" onClick={() => setFileOpen(true)}><AttachFileIcon /></IconButton>
+          <IconButton color="primary" onClick={() => setFileOpen(true)}><AttachFileIcon /></Tooltip>
         </Tooltip>
-        {/* 未来可扩展：文字转视频 */}
       </Stack>
-      <ReactQuill ref={quillRef} theme="snow" style={{ minHeight: 320, background: '#18243a', color: '#fff', borderRadius: 8 }} />
+
+      {/* 富文本编辑器 */}
+      <ReactQuill ref={quillRef} theme="snow" style={{ minHeight: 320, background: '#18243a', color: '#fff', borderRadius: 8, marginBottom: 16 }} />
+
+      {/* 发布平台选择 */}
+      <Box sx={{ mt: 2, mb: 2 }}>
+        <Typography sx={{ color: '#0ff', mb: 1, fontWeight: 600 }}>选择发布平台：</Typography>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          {PLATFORMS.map((platform) => (
+            <Chip
+              key={platform}
+              label={platform}
+              onClick={() => togglePlatform(platform)}
+              sx={{
+                bgcolor: selectedPlatforms.includes(platform) ? '#0ff' : 'rgba(0,255,255,0.1)',
+                color: selectedPlatforms.includes(platform) ? '#101c2c' : '#0ff',
+                fontWeight: 600,
+                border: '1px solid #0ff',
+                cursor: 'pointer',
+              }}
+            />
+          ))}
+        </Stack>
+      </Box>
+
+      {/* 操作按钮 */}
+      <Stack direction="row" spacing={2} justifyContent="flex-end">
+        <Button
+          variant="outlined"
+          startIcon={<DeleteIcon />}
+          onClick={handleClear}
+          sx={{ color: '#ff6b6b', borderColor: '#ff6b6b' }}
+        >
+          清空
+        </Button>
+        <Button
+          variant="outlined"
+          startIcon={<SaveIcon />}
+          onClick={handleSave}
+          disabled={saving}
+          sx={{ color: '#0ff', borderColor: '#0ff' }}
+        >
+          {saving ? '保存中...' : '保存草稿'}
+        </Button>
+        <Button
+          variant="contained"
+          startIcon={<SendIcon />}
+          onClick={handlePublish}
+          disabled={publishing}
+          sx={{
+            bgcolor: '#0ff',
+            color: '#101c2c',
+            fontWeight: 'bold',
+            '&:hover': { bgcolor: '#fff' }
+          }}
+        >
+          {publishing ? '发布中...' : '发布'}
+        </Button>
+      </Stack>
+
       {/* AI生成图片弹窗 */}
       <Dialog open={imgOpen} onClose={() => setImgOpen(false)}>
         <DialogTitle>AI生成图片</DialogTitle>
@@ -247,4 +498,4 @@ const RichMediaEditor: React.FC = () => {
   );
 };
 
-export default RichMediaEditor; 
+export default RichMediaEditor;

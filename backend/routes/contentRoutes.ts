@@ -1,9 +1,11 @@
 import { Router } from 'express';
-import { addContent, deleteContent } from '../controllers/contentController';
+import { getContents, addContent, updateContent, deleteContent } from '../controllers/contentController';
 
 const router = Router();
 
+router.get('/', getContents);
 router.post('/', addContent);
+router.put('/:id', updateContent);
 router.delete('/:id', deleteContent);
 
 export default router; 
